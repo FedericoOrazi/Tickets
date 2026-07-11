@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0e1013">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Biglietti">
+<title>Biglietti non pagati</title>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Biglietti non pagati","short_name":"Biglietti","start_url":".","display":"standalone","background_color":"%230e1013","theme_color":"%230e1013"}'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1013;
+    --surface: #16191e;
+    --surface-2: #1d2127;
+    --border: rgba(255,255,255,0.07);
+    --border-strong: rgba(255,255,255,0.12);
+    --ink: #f2f4f7;
+    --muted: #9aa3b2;
+    --faint: #5c6470;
+    --accent: #ff6b3d;
+    --accent-2: #ffa245;
+    --accent-ink: #331103;
+    --paper: #f2ead8;
+    --print: #3a3226;
+    --print-soft: #857962;
+    --stamp: #a63d57;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(900px 420px at 80% -10%, rgba(255,107,61,0.09), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Inter", -apple-system, sans-serif;
+    display: flex; flex-direction: column;
+    max-width: 460px; margin: 0 auto;
+    padding: max(16px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+    gap: 12px;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-family: "Space Grotesk", "Inter", sans-serif; font-variant-numeric: tabular-nums; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; }
+  header h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; transition: background 0.3s, box-shadow 0.3s; }
+  .sync-dot.ok { background: var(--ok); box-shadow: 0 0 10px rgba(74,222,128,0.55); }
+  .sync-dot.pending { background: var(--warn); }
+  .sync-dot.offline { background: var(--danger); }
+  .gear {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 12px;
+    width: 36px; height: 36px; font-size: 16px; cursor: pointer;
+    display: grid; place-items: center;
+  }
+
+  /* ---------- IL BIGLIETTO ---------- */
+  .ticket-wrap { filter: drop-shadow(0 14px 30px rgba(0,0,0,0.55)); }
+  .ticket {
+    position: relative;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 1px, transparent 1px 3px),
+      linear-gradient(160deg, #f7f0e1 0%, var(--paper) 55%, #ebe0c7 100%);
+    color: var(--print);
+    border-radius: 10px;
+    padding: 15px 18px 14px 24px;
+    overflow: hidden;
+    /* tacche di strappo: due layer di mask affiancati, niente mask-composite */
+    -webkit-mask:
+      radial-gradient(circle 10px at 0 50%, transparent 9.5px, #000 10px) left  / 51% 100% no-repeat,
+      radial-gradient(circle 10px at 100% 50%, transparent 9.5px, #000 10px) right / 51% 100% no-repeat;
+            mask:
+      radial-gradient(circle 10px at 0 50%, transparent 9.5px, #000 10px) left  / 51% 100% no-repeat,
+      radial-gradient(circle 10px at 100% 50%, transparent 9.5px, #000 10px) right / 51% 100% no-repeat;
+  }
+  .ticket::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
+    background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  }
+  .ticket .top-line {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 9.5px; font-weight: 500;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--print-soft);
+    border-bottom: 1px solid rgba(58,50,38,0.22);
+    padding-bottom: 8px;
+  }
+  .ticket .body {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0 10px;
+  }
+  .ticket .col-left { display: flex; flex-direction: column; gap: 2px; }
+  .ticket .label {
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--print-soft);
+  }
+  .ticket .count {
+    font-size: 74px; font-weight: 700; line-height: 0.9;
+    color: var(--print);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: left bottom;
+  }
+  .ticket .count.bump { transform: scale(1.07); }
+  .ticket .col-right { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+  .ticket .tot { font-size: 24px; font-weight: 700; line-height: 0.9; color: #b85e12; white-space: nowrap; }
+  .barcode {
+    height: 24px; border-radius: 1px;
+    background: repeating-linear-gradient(90deg,
+      var(--print) 0 2px, transparent 2px 5px,
+      var(--print) 5px 6px, transparent 6px 11px,
+      var(--print) 11px 15px, transparent 15px 18px,
+      var(--print) 18px 19px, transparent 19px 25px);
+    opacity: 0.85;
+  }
+  .ticket .sub {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 8px;
+    font-size: 10.5px; color: var(--print-soft);
+    letter-spacing: 0.05em;
+    min-height: 14px;
+  }
+  .stamp {
+    position: absolute;
+    right: 16px; top: 26%;
+    transform: rotate(-11deg) scale(1.5);
+    border: 3px solid var(--stamp);
+    border-radius: 6px;
+    color: var(--stamp);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 5px 10px;
+    opacity: 0;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    white-space: nowrap;
+  }
+  .stamp.hit { animation: stamp-in 1.5s ease-out forwards; }
+  @keyframes stamp-in {
+    0%   { opacity: 0; transform: rotate(-11deg) scale(1.6); }
+    12%  { opacity: 0.9; transform: rotate(-11deg) scale(1); }
+    70%  { opacity: 0.9; }
+    100% { opacity: 0; transform: rotate(-11deg) scale(1); }
+  }
+
+  /* ---------- STAT CHIPS ---------- */
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .chip .v { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .chip .k { font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+
+  /* ---------- CHART ---------- */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 16px 10px;
+  }
+  .chart-card .k { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+  .chart { display: flex; align-items: stretch; gap: 8px; height: 76px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .bar-area { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+  .bar {
+    width: 100%; max-width: 32px;
+    background: linear-gradient(180deg, var(--accent-2), var(--accent));
+    border-radius: 6px 6px 3px 3px;
+    transition: height 0.4s cubic-bezier(0.34, 1.3, 0.64, 1);
+  }
+  .bar.zero { background: var(--surface-2); border: 1px solid var(--border); }
+  .bar-col .d { font-size: 9.5px; color: var(--faint); font-weight: 600; text-transform: uppercase; margin-top: 6px; line-height: 1; }
+  .bar-col.today .d { color: var(--accent-2); }
+
+  /* ---------- CONTROLLI ---------- */
+  button { font: inherit; border: none; cursor: pointer; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .big-btn {
+    width: 100%; padding: 22px 0;
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--accent-ink);
+    font-size: 18px; font-weight: 700; letter-spacing: -0.01em;
+    box-shadow: 0 10px 30px -8px rgba(255,107,61,0.5), inset 0 1px 0 rgba(255,255,255,0.25);
+    transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.1s;
+  }
+  .big-btn:active { transform: scale(0.97); box-shadow: 0 4px 14px -6px rgba(255,107,61,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+  .row { display: flex; gap: 10px; }
+  .small-btn {
+    flex: 1; padding: 13px 0; border-radius: 14px;
+    background: var(--surface); color: var(--muted);
+    border: 1px solid var(--border);
+    font-size: 13.5px; font-weight: 600;
+    transition: background 0.15s;
+  }
+  .small-btn:active { background: var(--surface-2); }
+  .small-btn.danger { color: var(--danger); }
+
+  /* ---------- STORICO ---------- */
+  .history {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    flex: 1; overflow-y: auto; min-height: 90px;
+  }
+  .history h2 { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+  .history .empty { font-size: 13.5px; color: var(--muted); }
+  .day-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px; font-weight: 500;
+  }
+  .day-row:last-child { border-bottom: none; }
+  .day-row .n { font-family: "Space Grotesk", sans-serif; color: var(--accent-2); font-weight: 700; font-size: 15px; }
+
+  /* ---------- SETUP ---------- */
+  .setup {
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 18px;
+    padding: 18px;
+    display: none; flex-direction: column; gap: 10px;
+  }
+  .setup.show { display: flex; }
+  .setup h2 { font-size: 15px; font-weight: 700; }
+  .setup p { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .setup input {
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--ink);
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 13px; width: 100%;
+  }
+  .setup input:focus { outline: none; border-color: var(--accent); }
+  .setup .save {
+    padding: 13px 0; border-radius: 12px;
+    background: var(--accent); color: var(--accent-ink);
+    font-weight: 700;
+  }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(90px);
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--border-strong);
+    padding: 11px 20px; border-radius: 999px; font-size: 13.5px; font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1);
+    pointer-events: none; max-width: 90vw; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1><span class="sync-dot" id="syncDot"></span>Biglietti non pagati</h1>
+    <button class="gear" id="gearBtn" aria-label="Impostazioni">⚙︎</button>
+  </header>
+
+  <div class="setup" id="setup">
+    <h2>Collega Supabase</h2>
+    <p>Incolla l'URL del progetto e la chiave <b>publishable</b>. Restano salvate solo su questo dispositivo.</p>
+    <input id="cfgUrl" type="url" placeholder="https://xxxx.supabase.co" autocomplete="off">
+    <input id="cfgKey" type="text" placeholder="sb_publishable_..." autocomplete="off">
+    <input id="cfgFine" type="number" inputmode="decimal" min="0" step="0.5" placeholder="Multa per biglietto (€) — default 70" autocomplete="off">
+    <button class="save" id="cfgSave">Salva e sincronizza</button>
+  </div>
+
+  <div class="ticket-wrap">
+    <div class="ticket">
+      <div class="top-line mono">
+        <span>Biglietto non pagato</span>
+        <span>N. <span id="serial">000000</span></span>
+      </div>
+      <div class="body">
+        <div class="col-left">
+          <span class="label">Oggi</span>
+          <span class="count mono" id="todayCount">0</span>
+        </div>
+        <div class="col-right">
+          <span class="label">Debito</span>
+          <span class="tot mono" id="debt">€ 0</span>
+        </div>
+      </div>
+      <div class="barcode"></div>
+      <div class="sub mono">
+        <span id="lastEvent">—</span>
+        <span id="todayDate"></span>
+      </div>
+      <div class="stamp" id="stamp">Non pagato</div>
+    </div>
+  </div>
+
+  <div class="chips">
+    <div class="chip"><span class="v num" id="statTotal">0</span><span class="k">Totale</span></div>
+    <div class="chip"><span class="v num" id="statAvg">0</span><span class="k">Media/giorno</span></div>
+    <div class="chip"><span class="v num" id="statMax">0</span><span class="k">Record</span></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="k">Ultimi 7 giorni</div>
+    <div class="chart" id="chart"></div>
+  </div>
+
+  <button class="big-btn" id="addBtn">+1 non pagato</button>
+
+  <div class="row">
+    <button class="small-btn" id="undoBtn">↩︎ Annulla ultimo</button>
+    <button class="small-btn danger" id="resetBtn">Azzera tutto</button>
+  </div>
+
+  <div class="history">
+    <h2>Storico</h2>
+    <div id="historyList"><div class="empty">Nessun conteggio ancora.</div></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const CACHE_KEY  = "bnp-cache";
+  const QUEUE_KEY  = "bnp-queue";
+  const CONFIG_KEY = "bnp-config";
+
+  let CONFIG = { url: "", key: "", fine: 70 };
+  let events = [];
+  let queue = [];
+  let syncing = false;
+
+  const $ = id => document.getElementById(id);
+  const todayEl = $("todayCount"), totalEl = $("statTotal"), serialEl = $("serial"),
+        lastEl = $("lastEvent"), dateEl = $("todayDate"),
+        debtEl = $("debt"), avgEl = $("statAvg"), maxEl = $("statMax"),
+        chartEl = $("chart"), listEl = $("historyList"),
+        toastEl = $("toast"), dotEl = $("syncDot"),
+        setupEl = $("setup"), stampEl = $("stamp");
+
+  const configured = () => CONFIG.url && CONFIG.key;
+
+  // ---------- config ----------
+  function loadConfig() {
+    try { CONFIG = Object.assign(CONFIG, JSON.parse(localStorage.getItem(CONFIG_KEY)) || {}); } catch (e) {}
+    if (!configured()) setupEl.classList.add("show");
+    $("cfgUrl").value = CONFIG.url || "";
+    $("cfgKey").value = CONFIG.key || "";
+    $("cfgFine").value = CONFIG.fine || 70;
+  }
+  $("cfgSave").addEventListener("click", () => {
+    CONFIG.url = $("cfgUrl").value.trim().replace(/\/$/, "");
+    CONFIG.key = $("cfgKey").value.trim();
+    CONFIG.fine = parseFloat($("cfgFine").value) || 70;
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(CONFIG));
+    if (configured()) {
+      setupEl.classList.remove("show");
+      toast("Configurazione salvata");
+      sync();
+    } else {
+      toast("Compila entrambi i campi");
+    }
+  });
+  $("gearBtn").addEventListener("click", () => setupEl.classList.toggle("show"));
+
+  // ---------- persistenza locale ----------
+  function loadLocal() {
+    try { events = JSON.parse(localStorage.getItem(CACHE_KEY)) || []; } catch (e) { events = []; }
+    try { queue = JSON.parse(localStorage.getItem(QUEUE_KEY)) || []; } catch (e) { queue = []; }
+  }
+  function saveLocal() {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(events));
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  }
+
+  // ---------- Supabase REST ----------
+  const headers = extra => Object.assign({
+    "apikey": CONFIG.key,
+    "Authorization": "Bearer " + CONFIG.key,
+    "Content-Type": "application/json"
+  }, extra || {});
+  const api = path => CONFIG.url + "/rest/v1/" + path;
+
+  async function remoteFetchAll() {
+    const r = await fetch(api("events?select=id,ts&order=ts.asc"), { headers: headers() });
+    if (!r.ok) throw new Error("GET " + r.status);
+    return r.json();
+  }
+  async function remoteInsert(ts) {
+    const r = await fetch(api("events"), {
+      method: "POST",
+      headers: headers({ "Prefer": "return=representation" }),
+      body: JSON.stringify({ ts })
+    });
+    if (!r.ok) throw new Error("POST " + r.status);
+    return (await r.json())[0];
+  }
+  async function remoteDelete(id) {
+    const r = await fetch(api("events?id=eq." + id), { method: "DELETE", headers: headers() });
+    if (!r.ok) throw new Error("DELETE " + r.status);
+  }
+  async function remoteReset() {
+    const r = await fetch(api("events?id=gte.0"), { method: "DELETE", headers: headers() });
+    if (!r.ok) throw new Error("RESET " + r.status);
+  }
+
+  // ---------- coda offline ----------
+  async function flushQueue() {
+    if (!configured()) return false;
+    while (queue.length) {
+      const op = queue[0];
+      try {
+        if (op.op === "add") {
+          const row = await remoteInsert(op.ts);
+          const ev = events.find(e => e.id === op.tmpId);
+          if (ev) { ev.id = row.id; delete ev.pending; }
+        } else if (op.op === "del") {
+          await remoteDelete(op.id);
+        } else if (op.op === "reset") {
+          await remoteReset();
+        }
+        queue.shift();
+        saveLocal();
+      } catch (e) { return false; }
+    }
+    return true;
+  }
+
+  async function sync() {
+    if (syncing || !configured()) { render(); return; }
+    syncing = true;
+    setDot(queue.length ? "pending" : null);
+    try {
+      if (await flushQueue()) {
+        const rows = await remoteFetchAll();
+        events = rows.map(r => ({ id: r.id, ts: r.ts }));
+        saveLocal();
+        setDot("ok");
+      } else {
+        setDot("offline");
+      }
+    } catch (e) {
+      setDot("offline");
+    }
+    syncing = false;
+    render();
+  }
+  const setDot = s => { dotEl.className = "sync-dot" + (s ? " " + s : ""); };
+
+  // ---------- helpers ----------
+  function dayKey(d) {
+    const dt = new Date(d);
+    return dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
+  }
+  function fmtDay(key) {
+    const [y,m,d] = key.split("-").map(Number);
+    const dt = new Date(y, m-1, d);
+    if (key === dayKey(new Date())) return "Oggi";
+    if (key === dayKey(new Date(Date.now() - 86400000))) return "Ieri";
+    return dt.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+  }
+  const fmtTime = iso => new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+  let toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+  }
+
+  function render(bump) {
+    const today = dayKey(new Date());
+    const byDay = {};
+    for (const e of events) {
+      const k = dayKey(e.ts);
+      byDay[k] = (byDay[k] || 0) + 1;
+    }
+    const dayKeys = Object.keys(byDay);
+
+    todayEl.textContent = byDay[today] || 0;
+    totalEl.textContent = events.length;
+    serialEl.textContent = String(events.length).padStart(6, "0");
+    debtEl.textContent = "€ " + (events.length * (CONFIG.fine || 70)).toLocaleString("it-IT", { maximumFractionDigits: 2 });
+    avgEl.textContent = dayKeys.length ? (events.length / dayKeys.length).toFixed(1).replace(".", ",").replace(",0", "") : "0";
+    maxEl.textContent = dayKeys.length ? Math.max.apply(null, dayKeys.map(k => byDay[k])) : 0;
+
+    dateEl.textContent = new Date().toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+
+    if (bump) {
+      todayEl.classList.remove("bump");
+      void todayEl.offsetWidth;
+      todayEl.classList.add("bump");
+    }
+    lastEl.textContent = events.length ? "Ultimo alle " + fmtTime(events[events.length - 1].ts) : "—";
+
+    const days7 = [];
+    for (let i = 6; i >= 0; i--) days7.push(dayKey(new Date(Date.now() - i * 86400000)));
+    const maxWeek = Math.max(1, ...days7.map(k => byDay[k] || 0));
+    chartEl.innerHTML = days7.map(k => {
+      const n = byDay[k] || 0;
+      const h = n ? Math.max(12, Math.round(n / maxWeek * 100)) : 5;
+      const label = new Date(k + "T12:00:00").toLocaleDateString("it-IT", { weekday: "short" }).slice(0, 3);
+      return '<div class="bar-col' + (k === today ? " today" : "") + '">' +
+             '<div class="bar-area"><div class="bar' + (n ? "" : " zero") + '" style="height:' + h + '%" title="' + n + '"></div></div>' +
+             '<span class="d">' + label + '</span></div>';
+    }).join("");
+
+    const keys = dayKeys.sort().reverse();
+    listEl.innerHTML = keys.length
+      ? keys.map(k => '<div class="day-row"><span>' + fmtDay(k) + '</span><span class="n">' + byDay[k] + '</span></div>').join("")
+      : '<div class="empty">Nessun conteggio ancora.</div>';
+  }
+
+  function fireStamp(ts) {
+    stampEl.textContent = "Non pagato · " + fmtTime(ts);
+    stampEl.classList.remove("hit");
+    void stampEl.offsetWidth;
+    stampEl.classList.add("hit");
+  }
+
+  // ---------- azioni ----------
+  $("addBtn").addEventListener("click", () => {
+    const ts = new Date().toISOString();
+    const tmpId = "tmp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+    events.push({ id: tmpId, ts, pending: true });
+    queue.push({ op: "add", ts, tmpId });
+    saveLocal();
+    render(true);
+    fireStamp(ts);
+    if (navigator.vibrate) navigator.vibrate(30);
+    sync();
+  });
+
+  $("undoBtn").addEventListener("click", () => {
+    if (!events.length) { toast("Niente da annullare"); return; }
+    const last = events.pop();
+    if (last.pending) {
+      queue = queue.filter(q => q.tmpId !== last.id);
+    } else {
+      queue.push({ op: "del", id: last.id });
+    }
+    saveLocal();
+    render();
+    toast("Ultimo conteggio annullato");
+    sync();
+  });
+
+  let resetArmed = false, resetTimer;
+  $("resetBtn").addEventListener("click", () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      toast("Tocca di nuovo per confermare l'azzeramento");
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { resetArmed = false; }, 3000);
+      return;
+    }
+    resetArmed = false;
+    events = [];
+    queue = [{ op: "reset" }];
+    saveLocal();
+    render();
+    toast("Conteggio azzerato");
+    sync();
+  });
+
+  // ---------- avvio ----------
+  loadConfig();
+  loadLocal();
+  render();
+  sync();
+  window.addEventListener("online", sync);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") sync();
+  });
+})();
+</script>
+</body>
+</html>
