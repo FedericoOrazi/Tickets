@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#16181d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Biglietti">
+<title>Biglietti non pagati</title>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Biglietti non pagati","short_name":"Biglietti","start_url":".","display":"standalone","background_color":"%2316181d","theme_color":"%2316181d"}'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --asphalt: #16181d;       /* sfondo: asfalto notturno */
+    --panel: #1f232b;
+    --panel-2: #272c36;
+    --line: #343b48;
+    --ink: #e8ecf1;
+    --muted: #8a94a6;
+    --paper: #f2ead8;         /* carta del biglietto */
+    --paper-edge: #d9cdb2;
+    --print: #3a3226;         /* inchiostro stampato sulla carta */
+    --print-soft: #7d7362;
+    --arancio: #f47b20;       /* arancio ATM */
+    --arancio-dark: #cf6410;
+    --stamp: #a63d57;         /* inchiostro del timbro */
+    --ok: #58c08a;
+    --danger: #e2604f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 50% -200px, #232833 0%, var(--asphalt) 60%);
+    color: var(--ink);
+    font-family: "Archivo", -apple-system, sans-serif;
+    display: flex; flex-direction: column;
+    max-width: 480px; margin: 0 auto;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    gap: 14px;
+    user-select: none;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+
+  header { display: flex; align-items: center; justify-content: space-between; }
+  header h1 {
+    font-size: 13px; font-weight: 800;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 9px;
+  }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; transition: background 0.3s; }
+  .sync-dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(88,192,138,0.6); }
+  .sync-dot.pending { background: var(--arancio); }
+  .sync-dot.offline { background: var(--danger); }
+  .gear {
+    background: none; border: none; color: var(--muted);
+    font-size: 17px; padding: 4px 6px; cursor: pointer;
+  }
+
+  /* ------- IL BIGLIETTO ------- */
+  .ticket-wrap { position: relative; filter: drop-shadow(0 10px 24px rgba(0,0,0,0.5)); }
+  .ticket {
+    position: relative;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 1px, transparent 1px 3px),
+      linear-gradient(160deg, #f6efdf 0%, var(--paper) 55%, #ece1c8 100%);
+    color: var(--print);
+    border-radius: 8px;
+    padding: 16px 18px 14px 22px;
+    overflow: hidden;
+    /* tacche di strappo laterali */
+    -webkit-mask:
+      radial-gradient(circle 9px at 0 28%, transparent 98%, #000) left,
+      radial-gradient(circle 9px at 100% 28%, transparent 98%, #000) right;
+    -webkit-mask-composite: source-in;
+            mask:
+      radial-gradient(circle 9px at 0 28%, transparent 98%, #000) left,
+      radial-gradient(circle 9px at 100% 28%, transparent 98%, #000) right;
+    mask-composite: intersect;
+  }
+  .ticket .top-line {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--print-soft); font-weight: 500;
+    border-bottom: 1px solid rgba(58,50,38,0.25);
+    padding-bottom: 7px;
+  }
+  .ticket .top-line .serial { letter-spacing: 0.1em; }
+  .ticket .body {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0 6px;
+    gap: 12px;
+  }
+  .ticket .today-label {
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--print-soft); margin-bottom: 2px;
+  }
+  .ticket .count {
+    font-size: 76px; font-weight: 700; line-height: 0.95;
+    font-variant-numeric: tabular-nums;
+    color: var(--print);
+    transition: transform 0.12s ease;
+  }
+  .ticket .count.bump { transform: scale(1.1); }
+  .ticket .side {
+    text-align: right; flex: none;
+  }
+  .ticket .side .tot-label {
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--print-soft);
+  }
+  .ticket .side .tot {
+    font-size: 24px; font-weight: 700; color: var(--arancio-dark);
+  }
+  /* barcode */
+  .barcode {
+    height: 26px; margin-top: 8px; border-radius: 1px;
+    background: repeating-linear-gradient(90deg,
+      var(--print) 0 2px, transparent 2px 5px,
+      var(--print) 5px 6px, transparent 6px 11px,
+      var(--print) 11px 15px, transparent 15px 18px,
+      var(--print) 18px 19px, transparent 19px 25px);
+    opacity: 0.85;
+  }
+  .ticket .sub {
+    margin-top: 7px;
+    font-size: 10.5px; color: var(--print-soft);
+    letter-spacing: 0.06em;
+    min-height: 14px;
+    display: flex; justify-content: space-between;
+  }
+  /* banda arancione laterale */
+  .ticket::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
+    background: linear-gradient(180deg, var(--arancio), var(--arancio-dark));
+  }
+  /* timbro di obliterazione */
+  .stamp {
+    position: absolute;
+    right: 14px; top: 34%;
+    transform: rotate(-11deg) scale(1.5);
+    border: 3px solid var(--stamp);
+    border-radius: 6px;
+    color: var(--stamp);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 5px 10px;
+    opacity: 0;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+  .stamp.hit { animation: stamp-in 1.5s ease-out forwards; }
+  @keyframes stamp-in {
+    0%   { opacity: 0; transform: rotate(-11deg) scale(1.6); }
+    12%  { opacity: 0.9; transform: rotate(-11deg) scale(1); }
+    70%  { opacity: 0.9; }
+    100% { opacity: 0; transform: rotate(-11deg) scale(1); }
+  }
+
+  /* ------- CONTROLLI ------- */
+  button { font: inherit; border: none; cursor: pointer; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--arancio); outline-offset: 2px; }
+  .big-btn {
+    width: 100%; padding: 24px 0; border-radius: 14px;
+    background: linear-gradient(180deg, var(--arancio), var(--arancio-dark));
+    color: #2b1503;
+    font-size: 20px; font-weight: 800; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 6px 0 #8f4508, 0 10px 20px rgba(0,0,0,0.4);
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+  }
+  .big-btn:active { transform: translateY(5px); box-shadow: 0 1px 0 #8f4508, 0 4px 10px rgba(0,0,0,0.4); }
+  .row { display: flex; gap: 10px; }
+  .small-btn {
+    flex: 1; padding: 12px 0; border-radius: 10px;
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--line);
+    font-size: 13.5px; font-weight: 600;
+  }
+  .small-btn:active { background: #313847; }
+  .small-btn.danger { color: var(--danger); }
+
+  /* ------- STORICO ------- */
+  .history {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px; flex: 1; overflow-y: auto; min-height: 110px;
+  }
+  .history h2 {
+    font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px; font-weight: 800;
+  }
+  .history .empty { font-size: 13.5px; color: var(--muted); }
+  .day-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 14px;
+  }
+  .day-row:last-child { border-bottom: none; }
+  .day-row .n { font-family: "IBM Plex Mono", monospace; color: var(--arancio); font-weight: 700; }
+
+  /* ------- SETUP ------- */
+  .setup {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .setup.show { display: flex; }
+  .setup h2 { font-size: 14px; font-weight: 800; }
+  .setup p { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .setup input {
+    background: var(--asphalt);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 11px 12px;
+    color: var(--ink);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    width: 100%;
+  }
+  .setup input:focus { outline: none; border-color: var(--arancio); }
+  .setup .save {
+    padding: 12px 0; border-radius: 10px;
+    background: var(--arancio); color: #2b1503;
+    font-weight: 800;
+  }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%) translateY(90px);
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 10px 18px; border-radius: 999px; font-size: 13.5px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    transition: transform 0.25s ease; pointer-events: none;
+    max-width: 90vw; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+    .stamp.hit { opacity: 0.9; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1><span class="sync-dot" id="syncDot"></span>Biglietti non pagati</h1>
+    <button class="gear" id="gearBtn" aria-label="Impostazioni">⚙︎</button>
+  </header>
+
+  <div class="setup" id="setup">
+    <h2>Collega Supabase</h2>
+    <p>Incolla l'URL del progetto e la chiave <b>anon public</b> (Settings → API). Restano salvate su questo telefono.</p>
+    <input id="cfgUrl" type="url" placeholder="https://xxxx.supabase.co" autocomplete="off">
+    <input id="cfgKey" type="text" placeholder="anon key (eyJ...)" autocomplete="off">
+    <button class="save" id="cfgSave">Salva e sincronizza</button>
+  </div>
+
+  <div class="ticket-wrap">
+    <div class="ticket">
+      <div class="top-line mono">
+        <span>Corsa semplice · non convalidata</span>
+        <span class="serial">N. <span id="serial">000000</span></span>
+      </div>
+      <div class="body">
+        <div>
+          <div class="today-label">Oggi</div>
+          <div class="count mono" id="todayCount">0</div>
+        </div>
+        <div class="side">
+          <div class="tot-label">Totale</div>
+          <div class="tot mono" id="total">0</div>
+        </div>
+      </div>
+      <div class="barcode"></div>
+      <div class="sub mono">
+        <span id="lastEvent"></span>
+        <span>MCT · linea urbana</span>
+      </div>
+      <div class="stamp" id="stamp">Non pagato</div>
+    </div>
+  </div>
+
+  <button class="big-btn" id="addBtn">+1 non pagato</button>
+
+  <div class="row">
+    <button class="small-btn" id="undoBtn">↩︎ Annulla ultimo</button>
+    <button class="small-btn danger" id="resetBtn">Azzera tutto</button>
+  </div>
+
+  <div class="history">
+    <h2>Storico per giorno</h2>
+    <div id="historyList"><div class="empty">Nessun conteggio ancora. Tocca il pulsante per iniziare.</div></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const CACHE_KEY  = "bnp-cache";
+  const QUEUE_KEY  = "bnp-queue";
+  const CONFIG_KEY = "bnp-config";
+
+  let CONFIG = { url: "", key: "" };
+  let events = [];   // [{ id, ts, pending? }]
+  let queue = [];
+  let syncing = false;
+
+  const $ = id => document.getElementById(id);
+  const todayEl = $("todayCount"), totalEl = $("total"), serialEl = $("serial"),
+        lastEl = $("lastEvent"), listEl = $("historyList"),
+        toastEl = $("toast"), dotEl = $("syncDot"),
+        setupEl = $("setup"), stampEl = $("stamp");
+
+  const configured = () => CONFIG.url && CONFIG.key;
+
+  // ---------- config ----------
+  function loadConfig() {
+    try { CONFIG = Object.assign(CONFIG, JSON.parse(localStorage.getItem(CONFIG_KEY)) || {}); } catch (e) {}
+    if (!configured()) setupEl.classList.add("show");
+    $("cfgUrl").value = CONFIG.url || "";
+    $("cfgKey").value = CONFIG.key || "";
+  }
+  $("cfgSave").addEventListener("click", () => {
+    CONFIG.url = $("cfgUrl").value.trim().replace(/\/$/, "");
+    CONFIG.key = $("cfgKey").value.trim();
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(CONFIG));
+    if (configured()) {
+      setupEl.classList.remove("show");
+      toast("Configurazione salvata");
+      sync();
+    } else {
+      toast("Compila entrambi i campi");
+    }
+  });
+  $("gearBtn").addEventListener("click", () => setupEl.classList.toggle("show"));
+
+  // ---------- persistenza locale ----------
+  function loadLocal() {
+    try { events = JSON.parse(localStorage.getItem(CACHE_KEY)) || []; } catch (e) { events = []; }
+    try { queue = JSON.parse(localStorage.getItem(QUEUE_KEY)) || []; } catch (e) { queue = []; }
+  }
+  function saveLocal() {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(events));
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  }
+
+  // ---------- Supabase REST ----------
+  const headers = extra => Object.assign({
+    "apikey": CONFIG.key,
+    "Authorization": "Bearer " + CONFIG.key,
+    "Content-Type": "application/json"
+  }, extra || {});
+  const api = path => CONFIG.url + "/rest/v1/" + path;
+
+  async function remoteFetchAll() {
+    const r = await fetch(api("events?select=id,ts&order=ts.asc"), { headers: headers() });
+    if (!r.ok) throw new Error("GET " + r.status);
+    return r.json();
+  }
+  async function remoteInsert(ts) {
+    const r = await fetch(api("events"), {
+      method: "POST",
+      headers: headers({ "Prefer": "return=representation" }),
+      body: JSON.stringify({ ts })
+    });
+    if (!r.ok) throw new Error("POST " + r.status);
+    return (await r.json())[0];
+  }
+  async function remoteDelete(id) {
+    const r = await fetch(api("events?id=eq." + id), { method: "DELETE", headers: headers() });
+    if (!r.ok) throw new Error("DELETE " + r.status);
+  }
+  async function remoteReset() {
+    const r = await fetch(api("events?id=gte.0"), { method: "DELETE", headers: headers() });
+    if (!r.ok) throw new Error("RESET " + r.status);
+  }
+
+  // ---------- coda offline ----------
+  async function flushQueue() {
+    if (!configured()) return false;
+    while (queue.length) {
+      const op = queue[0];
+      try {
+        if (op.op === "add") {
+          const row = await remoteInsert(op.ts);
+          const ev = events.find(e => e.id === op.tmpId);
+          if (ev) { ev.id = row.id; delete ev.pending; }
+        } else if (op.op === "del") {
+          await remoteDelete(op.id);
+        } else if (op.op === "reset") {
+          await remoteReset();
+        }
+        queue.shift();
+        saveLocal();
+      } catch (e) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function sync() {
+    if (syncing || !configured()) { render(); return; }
+    syncing = true;
+    setDot(queue.length ? "pending" : null);
+    try {
+      if (await flushQueue()) {
+        const rows = await remoteFetchAll();
+        events = rows.map(r => ({ id: r.id, ts: r.ts }));
+        saveLocal();
+        setDot("ok");
+      } else {
+        setDot("offline");
+      }
+    } catch (e) {
+      setDot("offline");
+    }
+    syncing = false;
+    render();
+  }
+
+  const setDot = s => { dotEl.className = "sync-dot" + (s ? " " + s : ""); };
+
+  // ---------- helpers ----------
+  function dayKey(d) {
+    const dt = new Date(d);
+    return dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
+  }
+  function fmtDay(key) {
+    const [y,m,d] = key.split("-").map(Number);
+    const dt = new Date(y, m-1, d);
+    if (key === dayKey(new Date())) return "Oggi";
+    if (key === dayKey(new Date(Date.now() - 86400000))) return "Ieri";
+    return dt.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+  }
+  const fmtTime = iso => new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+  let toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+  }
+
+  function render(bump) {
+    const today = dayKey(new Date());
+    const byDay = {};
+    for (const e of events) {
+      const k = dayKey(e.ts);
+      byDay[k] = (byDay[k] || 0) + 1;
+    }
+    todayEl.textContent = byDay[today] || 0;
+    totalEl.textContent = events.length;
+    serialEl.textContent = String(events.length).padStart(6, "0");
+    if (bump) {
+      todayEl.classList.remove("bump");
+      void todayEl.offsetWidth;
+      todayEl.classList.add("bump");
+    }
+    lastEl.textContent = events.length ? "Ultimo: " + fmtTime(events[events.length - 1].ts) : "—";
+
+    const keys = Object.keys(byDay).sort().reverse();
+    listEl.innerHTML = keys.length
+      ? keys.map(k => '<div class="day-row"><span>' + fmtDay(k) + '</span><span class="n">' + byDay[k] + '</span></div>').join("")
+      : '<div class="empty">Nessun conteggio ancora. Tocca il pulsante per iniziare.</div>';
+  }
+
+  function fireStamp(ts) {
+    stampEl.textContent = "Non pagato · " + fmtTime(ts);
+    stampEl.classList.remove("hit");
+    void stampEl.offsetWidth;
+    stampEl.classList.add("hit");
+  }
+
+  // ---------- azioni ----------
+  $("addBtn").addEventListener("click", () => {
+    const ts = new Date().toISOString();
+    const tmpId = "tmp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+    events.push({ id: tmpId, ts, pending: true });
+    queue.push({ op: "add", ts, tmpId });
+    saveLocal();
+    render(true);
+    fireStamp(ts);
+    if (navigator.vibrate) navigator.vibrate(30);
+    sync();
+  });
+
+  $("undoBtn").addEventListener("click", () => {
+    if (!events.length) { toast("Niente da annullare"); return; }
+    const last = events.pop();
+    if (last.pending) {
+      queue = queue.filter(q => q.tmpId !== last.id);
+    } else {
+      queue.push({ op: "del", id: last.id });
+    }
+    saveLocal();
+    render();
+    toast("Ultimo conteggio annullato");
+    sync();
+  });
+
+  let resetArmed = false, resetTimer;
+  $("resetBtn").addEventListener("click", () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      toast("Tocca di nuovo per confermare l'azzeramento");
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { resetArmed = false; }, 3000);
+      return;
+    }
+    resetArmed = false;
+    events = [];
+    queue = [{ op: "reset" }];
+    saveLocal();
+    render();
+    toast("Conteggio azzerato");
+    sync();
+  });
+
+  // ---------- avvio ----------
+  loadConfig();
+  loadLocal();
+  render();
+  sync();
+  window.addEventListener("online", sync);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") sync();
+  });
+})();
+</script>
+</body>
+</html>
